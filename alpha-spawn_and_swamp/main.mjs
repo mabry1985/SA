@@ -24,37 +24,50 @@ import {
   TOUGH,
 } from "/game/constants";
 import {} from "/arena";
-import { testArray } from "./test";
-
-let spawn;
-let enemySpawn;
-let sources;
 
 const creepBuilds = {
   harvester: {
     bodyParts: [MOVE, MOVE, CARRY, WORK],
-    role: "harvester",
+  },
+  zergling: {
+    bodyParts: [TOUGH, TOUGH, MOVE, MOVE, ATTACK],
   },
   tank: {
-    bodyParts: [MOVE, MOVE, ATTACK],
-    role: "tank",
+    bodyParts: [
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      TOUGH,
+      MOVE,
+      MOVE,
+      ATTACK,
+      ATTACK,
+      ATTACK,
+    ],
   },
   healer: {
     bodyParts: [MOVE, MOVE, HEAL, HEAL],
-    role: "healer",
   },
   ranged: {
     bodyParts: [MOVE, MOVE, MOVE, MOVE, RANGED_ATTACK, RANGED_ATTACK],
-    role: "ranged",
   },
+};
+
+let spawn;
+let enemySpawn;
+let wave = 1;
+let tankHealer = {
+  ready: false,
+  tank: undefined,
+  healer: undefined,
 };
 
 export function loop() {
   if (!spawn) spawn = getObjectsByPrototype(StructureSpawn).find((i) => i.my);
   if (!enemySpawn)
     enemySpawn = getObjectsByPrototype(StructureSpawn).find((i) => !i.my);
-  if (!sources) sources = getObjectsByPrototype(Source);
-  console.log(testArray);
+
   const containers = getObjectsByPrototype(StructureContainer).filter(
     (i) => i.store[RESOURCE_ENERGY] > 0
   );
@@ -67,6 +80,9 @@ export function loop() {
   const tankCreeps = getObjectsByPrototype(Creep).filter(
     (i) => i.my && i.role === "tank"
   );
+  const zergCreeps = getObjectsByPrototype(Creep).filter(
+    (i) => i.my && i.role === "zergling"
+  );
   const healerCreeps = getObjectsByPrototype(Creep).filter(
     (i) => i.my && i.role === "healer"
   );
@@ -75,34 +91,41 @@ export function loop() {
   );
 
   if (harvesterCreeps.length < 2) {
-    const creep = spawn.spawnCreep(creepBuilds.harvester.bodyParts).object;
-    if (creep !== undefined) {
-      creep.role = creepBuilds.harvester.role;
-      creep.working = false;
+    spawnCreep("harvester");
+  } else if (zergCreeps.length < 7) {
+    spawnCreep("zergling");
+  } else {
+    wave = 2;
+  }
+
+  if (wave === 2 && spawn.store[RESOURCE_ENERGY] >= 1000) {
+    if (tankCreeps.length < 2) {
+      tankHealer.tank = spawnCreep("tank");
+      tankHealer.healer = spawnCreep("healer");
     }
-  } else if (tankCreeps.length < 10) {
-    const creep = spawn.spawnCreep(creepBuilds.tank.bodyParts).object;
-    if (creep !== undefined) creep.role = creepBuilds.tank.role;
-    // } else if (healerCreeps < 1) {
-    //     const creep = spawn.spawnCreep(creepBuilds.healer.bodyPart4).object
-    //     if (creep !== undefined) creep.role = creepBuilds.healer.role
-    // } else if (rangedCreeps < 1) {
-    //     const creep = spawn.spawnCreep(creepBuilds.ranged.bodyPart4).object
-    //     if (creep !== undefined) creep.role = creepBuilds.ranged.role
   }
 
   harvesterCreeps.forEach((creep) => runHarvester(creep, containers, spawn));
 
-  tankCreeps.forEach((creep) =>
+  zergCreeps.forEach((creep) =>
     meleeAttack(creep, findClosestByPath(creep, enemyCreeps))
   );
-  tankCreeps.forEach((creep) => spawnAttack(creep, enemySpawn));
+  zergCreeps.forEach((creep) => spawnAttack(creep, enemySpawn));
 
-  rangedCreeps.forEach((creep) =>
-    rangedAttack(creep, findClosestByPath(creep, enemyCreeps))
-  );
-  healerCreeps.forEach((creep) => heal(creep, creeps, tankCreeps));
+  // rangedCreeps.forEach((creep) =>
+  //   rangedAttack(creep, findClosestByPath(creep, enemyCreeps))
+  // );
+  // healerCreeps.forEach((creep) => heal(creep, creeps, tankCreeps));
 }
+
+const spawnCreep = (role) => {
+  const creep = spawn.spawnCreep(creepBuilds[role].bodyParts).object;
+  if (creep !== undefined) {
+    creep.role = role;
+    creep.working = false;
+    return creep;
+  }
+};
 
 const meleeAttack = (creep, enemyCreep) => {
   console.log(creep.attack(enemyCreep), "im attacking");
